@@ -570,6 +570,7 @@ async function viewReportDetails(reportId) {
 
 async function updateReportStatus(reportId, newStatus) {
     console.log('🔄 updateReportStatus called with:', { reportId, newStatus });
+    console.log('📋 Current reports in memory:', app.reports.length, app.reports.map(r => ({ id: r.id, status: r.status })));
     
     if (!newStatus) {
         console.log('⚠️ No status provided, returning');
@@ -592,41 +593,36 @@ async function updateReportStatus(reportId, newStatus) {
             return;
         }
 
-        // Immediately update local state and UI
-        const report = app.reports.find(r => r.id === reportId);
-        if (report) {
-            report.status = newStatus;
-            console.log('✅ Local report updated:', { reportId, newStatus });
+        // Immediately close modal first
+        closeReportModal();
+        
+        // Immediately fetch the updated report from server
+        console.log('🔄 Fetching updated report from server...');
+        const reportResponse = await fetch(`${app.apiUrl}/reports/${reportId}`);
+        if (reportResponse.ok) {
+            const updatedReport = await reportResponse.json();
+            console.log('📥 Got updated report from server:', updatedReport);
+            
+            // Find and replace the report in local array
+            const reportIndex = app.reports.findIndex(r => r.id === reportId);
+            if (reportIndex >= 0) {
+                app.reports[reportIndex] = updatedReport;
+                console.log('✅ Updated report in local array at index:', reportIndex);
+            } else {
+                console.warn('⚠️ Report not found in local array, adding it:', reportId);
+                app.reports.push(updatedReport);
+            }
+            
+            // Update UI immediately
+            console.log('🎨 Updating dashboard and table...');
+            updateDashboardStats();
+            updateReportsTable();
+            console.log('✅ UI updated');
         }
-
+        
         const statusLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
         console.log(`✅ Report status updated to: ${statusLabel}`);
         showNotification(`✅ Report status changed to: ${statusLabel}`, 'success');
-        
-        // Update UI immediately
-        updateDashboardStats();
-        updateReportsTable();
-        console.log('📝 Closing modal...');
-        closeReportModal();
-        
-        // Reload all reports from server in background to ensure sync
-        console.log('🔄 Syncing reports data in background...');
-        setTimeout(async () => {
-            try {
-                const reportsResponse = await fetch(`${app.apiUrl}/reports`);
-                if (reportsResponse.ok) {
-                    const reports = await reportsResponse.json();
-                    app.reports = Array.isArray(reports) ? reports : [];
-                    updateDashboardStats();
-                    updateReportsTable();
-                    console.log('✅ Reports synced with server, total reports:', app.reports.length);
-                } else {
-                    console.error('Failed to reload reports:', reportsResponse.status);
-                }
-            } catch (error) {
-                console.error('❌ Error syncing reports:', error);
-            }
-        }, 500);
     } catch (error) {
         console.error('❌ Error updating report:', error);
         showNotification('Failed to update report', 'error');
