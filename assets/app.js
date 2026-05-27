@@ -11,6 +11,7 @@ const app = {
     notifications: [],
     notificationCheckInterval: null,
     reportsRefreshInterval: null,
+    isNavigating: false,
     apiUrl: window.MINEGUARD_API_URL || (() => {
         // In production, API is same origin. In development, use localhost
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -33,6 +34,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     setupEventListeners();
     loadInitialData();
+    
+    // Handle hash changes (browser back/forward)
+    window.addEventListener('hashchange', () => {
+        if (app.isNavigating) {
+            console.log('⏭️ Skipping hashchange - already navigating');
+            return;
+        }
+        const hash = window.location.hash.substring(1) || 'home';
+        console.log('🔗 Hash changed to:', hash);
+        navigateToSection(hash);
+    });
 });
 
 function initializeApp() {
@@ -51,8 +63,10 @@ function initializeApp() {
         }
     }
 
-    // Set initial section
-    navigateToSection('home');
+    // Set initial section based on URL hash, fallback to home
+    const initialSection = window.location.hash.substring(1) || 'home';
+    console.log('🔗 Initial section from URL hash:', initialSection);
+    navigateToSection(initialSection);
 }
 
 function setupEventListeners() {
@@ -100,6 +114,15 @@ function setupEventListeners() {
 function navigateToSection(sectionId) {
     console.log(`🔄 Navigating to section: ${sectionId}`);
     
+    // Set flag to prevent recursion
+    app.isNavigating = true;
+    
+    // Update URL hash to preserve route on refresh
+    if (window.location.hash.substring(1) !== sectionId) {
+        window.location.hash = sectionId;
+        console.log(`🔗 Updated URL hash to: #${sectionId}`);
+    }
+    
     // Hide all sections
     const sections = document.querySelectorAll('.page-section');
     sections.forEach(section => section.classList.remove('active'));
@@ -136,6 +159,7 @@ function navigateToSection(sectionId) {
             loadDashboard();
         } else if (sectionId === 'profile') {
             if (!app.currentUser) {
+                app.isNavigating = false;
                 navigateToSection('home');
                 showNotification('Please login to view your profile', 'info');
                 return;
@@ -143,6 +167,7 @@ function navigateToSection(sectionId) {
             loadProfile();
         } else if (sectionId === 'admin') {
             if (!isUserAdmin()) {
+                app.isNavigating = false;
                 navigateToSection('home');
                 showNotification('Access denied', 'error');
                 return;
@@ -153,6 +178,11 @@ function navigateToSection(sectionId) {
         // Scroll to top
         window.scrollTo(0, 0);
     }
+    
+    // Clear flag after navigation completes
+    setTimeout(() => {
+        app.isNavigating = false;
+    }, 100);
 }
 
 function scrollToFeatures() {
