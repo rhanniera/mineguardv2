@@ -475,25 +475,39 @@ function updateDashboardStats() {
 
 function updateReportsTable() {
     const tbody = document.getElementById('reportsTableBody');
+    console.log('🖼️ updateReportsTable called, tbody element:', !!tbody);
+    console.log('📋 Reports to render:', app.reports.length, app.reports.map(r => ({ id: r.id.substring(0, 8), status: r.status })));
+
+    if (!tbody) {
+        console.error('❌ reportsTableBody element not found!');
+        return;
+    }
 
     if (app.reports.length === 0) {
+        console.log('ℹ️ No reports to display');
         tbody.innerHTML = '<tr><td colspan="7" class="text-center">No reports yet</td></tr>';
         return;
     }
 
-    tbody.innerHTML = app.reports.map(report => `
+    const html = app.reports.map(report => {
+        console.log(`📝 Rendering report ${report.id.substring(0, 8)}: status=${report.status}`);
+        return `
         <tr>
             <td>#${report.id.substring(0, 8)}</td>
             <td>${formatType(report.hazardType)}</td>
             <td><span class="severity-badge severity-${report.severity}">${report.severity}</span></td>
             <td>${report.location}</td>
-            <td><span class="status-badge status-${report.status}">${report.status}</span></td>
+            <td><span class="status-badge status-${report.status.toLowerCase()}">${report.status.toUpperCase()}</span></td>
             <td>${formatDate(report.submittedDate)}</td>
             <td>
                 <button class="btn btn-small" onclick="viewReportDetails('${report.id}')">View</button>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
+    
+    tbody.innerHTML = html;
+    console.log('✅ Table HTML updated in DOM');
 }
 
 // ============================================
@@ -578,6 +592,12 @@ async function updateReportStatus(reportId, newStatus) {
     }
 
     try {
+        // Temporarily stop polling to prevent interference
+        console.log('⏸️ Temporarily stopping reports polling...');
+        if (app.reportsRefreshInterval) {
+            clearInterval(app.reportsRefreshInterval);
+        }
+
         console.log('📡 Sending PUT request to update status');
         const response = await fetch(`${app.apiUrl}/reports/${reportId}`, {
             method: 'PUT',
@@ -590,6 +610,7 @@ async function updateReportStatus(reportId, newStatus) {
         if (!response.ok) {
             console.error('❌ Update failed with status:', response.status);
             showNotification('Failed to update report status', 'error');
+            startReportsPolling();
             return;
         }
 
@@ -605,9 +626,12 @@ async function updateReportStatus(reportId, newStatus) {
             
             // Find and replace the report in local array
             const reportIndex = app.reports.findIndex(r => r.id === reportId);
+            console.log('🔍 Found report at index:', reportIndex);
+            
             if (reportIndex >= 0) {
                 app.reports[reportIndex] = updatedReport;
                 console.log('✅ Updated report in local array at index:', reportIndex);
+                console.log('📊 Updated report now has status:', app.reports[reportIndex].status);
             } else {
                 console.warn('⚠️ Report not found in local array, adding it:', reportId);
                 app.reports.push(updatedReport);
@@ -623,9 +647,16 @@ async function updateReportStatus(reportId, newStatus) {
         const statusLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
         console.log(`✅ Report status updated to: ${statusLabel}`);
         showNotification(`✅ Report status changed to: ${statusLabel}`, 'success');
+        
+        // Restart polling after a brief delay
+        console.log('▶️ Restarting reports polling...');
+        setTimeout(() => {
+            startReportsPolling();
+        }, 1000);
     } catch (error) {
         console.error('❌ Error updating report:', error);
         showNotification('Failed to update report', 'error');
+        startReportsPolling();
     }
 }
 
