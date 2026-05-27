@@ -62,6 +62,50 @@ CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications(userId);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 `;
 
+function hashPassword(password) {
+    // Simple hash - in production use bcrypt
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function createSampleData(uuidv4) {
+    try {
+        // Create sample workers
+        const worker1Id = uuidv4();
+        const worker2Id = uuidv4();
+        
+        await db.run(
+            'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
+            [worker1Id, 'John Smith', 'john@mineguard.com', hashPassword('password123'), 'Operations', 'user']
+        );
+        
+        await db.run(
+            'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
+            [worker2Id, 'Sarah Johnson', 'sarah@mineguard.com', hashPassword('password123'), 'Safety', 'user']
+        );
+        
+        console.log('✓ Sample users created');
+        
+        // Create sample reports
+        const report1Id = uuidv4();
+        const report2Id = uuidv4();
+        
+        await db.run(
+            'INSERT INTO reports (id, userId, hazardType, severity, location, description, affectedPeople, immediateAction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [report1Id, worker1Id, 'Equipment Malfunction', 'High', 'Shaft B', 'Grinding equipment making unusual noise', 3, 'Stop operation immediately', 'open']
+        );
+        
+        await db.run(
+            'INSERT INTO reports (id, userId, hazardType, severity, location, description, affectedPeople, immediateAction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [report2Id, worker2Id, 'Safety Violation', 'Medium', 'Surface Area', 'Worker not wearing hard hat', 1, 'Issue written warning', 'resolved']
+        );
+        
+        console.log('✓ Sample reports created');
+    } catch (err) {
+        console.warn('Warning: Could not create sample data:', err.message);
+    }
+}
+
 async function initializeDatabase() {
     try {
         // Create data directory if it doesn't exist
@@ -110,6 +154,9 @@ async function initializeDatabase() {
                 console.log('✓ Default admin user created');
                 console.log(`  Email: ${adminEmail}`);
                 console.log(`  Password: admin123`);
+
+                // Create sample users and data
+                await createSampleData(uuidv4);
             }
         } catch (err) {
             console.warn('Warning: Could not create admin user:', err.message);
@@ -122,12 +169,6 @@ async function initializeDatabase() {
         // Don't exit - let server continue
         throw error;
     }
-}
-
-function hashPassword(password) {
-    // Simple hash - in production use bcrypt
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(password).digest('hex');
 }
 
 // Run if executed directly
