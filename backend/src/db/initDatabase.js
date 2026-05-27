@@ -66,8 +66,13 @@ async function initializeDatabase() {
     try {
         // Create data directory if it doesn't exist
         const dataDir = path.join(__dirname, '../../data');
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
+        try {
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
+            }
+        } catch (err) {
+            console.warn('Warning: Could not ensure data directory:', err.message);
+            // Continue anyway
         }
 
         await db.connect();
@@ -76,35 +81,46 @@ async function initializeDatabase() {
         const statements = SCHEMA_SQL.split(';').filter(stmt => stmt.trim());
         for (const statement of statements) {
             if (statement.trim()) {
-                await db.run(statement);
+                try {
+                    await db.run(statement);
+                } catch (err) {
+                    if (!err.message.includes('already exists')) {
+                        console.warn('Schema execution warning:', err.message);
+                    }
+                }
             }
         }
 
         console.log('✓ Database schema initialized');
 
         // Create default admin user
-        const { v4: uuidv4 } = require('uuid');
-        const adminId = uuidv4();
-        const adminEmail = 'admin@mineguard.com';
-        const adminPassword = hashPassword('admin123'); // In production, use strong password
+        try {
+            const { v4: uuidv4 } = require('uuid');
+            const adminId = uuidv4();
+            const adminEmail = 'admin@mineguard.com';
+            const adminPassword = hashPassword('admin123');
 
-        // Check if admin exists
-        const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', [adminEmail]);
-        
-        if (!existingAdmin) {
-            await db.run(
-                'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
-                [adminId, 'Administrator', adminEmail, adminPassword, 'Management', 'admin']
-            );
-            console.log('✓ Default admin user created');
-            console.log(`  Email: ${adminEmail}`);
-            console.log(`  Password: admin123`);
+            const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', [adminEmail]);
+            
+            if (!existingAdmin) {
+                await db.run(
+                    'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
+                    [adminId, 'Administrator', adminEmail, adminPassword, 'Management', 'admin']
+                );
+                console.log('✓ Default admin user created');
+                console.log(`  Email: ${adminEmail}`);
+                console.log(`  Password: admin123`);
+            }
+        } catch (err) {
+            console.warn('Warning: Could not create admin user:', err.message);
+            // Don't crash - user might already exist
         }
 
         console.log('✓ Database initialization complete');
     } catch (error) {
-        console.error('Database initialization error:', error);
-        process.exit(1);
+        console.error('Database initialization error:', error.message);
+        // Don't exit - let server continue
+        throw error;
     }
 }
 

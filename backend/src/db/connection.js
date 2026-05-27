@@ -2,26 +2,27 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const DB_PATH = path.join(__dirname, '../../data/mineguard.db');
+// Use /tmp for Railway or fallback to data directory
+const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
+const DB_PATH = path.join(dataDir, 'mineguard.db');
 
 class Database {
     constructor() {
         this.db = null;
+        this.connected = false;
     }
 
     connect() {
         return new Promise((resolve, reject) => {
             // Ensure data directory exists
-            const dataDir = path.dirname(DB_PATH);
-            if (!fs.existsSync(dataDir)) {
-                try {
-                    fs.mkdirSync(dataDir, { recursive: true });
+            try {
+                if (!fs.existsSync(dataDir)) {
+                    fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
                     console.log('✓ Created data directory:', dataDir);
-                } catch (err) {
-                    console.error('Failed to create data directory:', err);
-                    reject(err);
-                    return;
                 }
+            } catch (err) {
+                console.error('Warning: Could not create data directory:', err.message);
+                // Continue anyway, might still work
             }
 
             this.db = new sqlite3.Database(DB_PATH, (err) => {
@@ -30,6 +31,7 @@ class Database {
                     reject(err);
                 } else {
                     console.log('✓ Connected to database:', DB_PATH);
+                    this.connected = true;
                     this.db.run('PRAGMA foreign_keys = ON', (err) => {
                         if (err) reject(err);
                         else resolve();
