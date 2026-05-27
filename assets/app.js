@@ -10,6 +10,7 @@ const app = {
     users: [],
     notifications: [],
     notificationCheckInterval: null,
+    reportsRefreshInterval: null,
     apiUrl: window.MINEGUARD_API_URL || (() => {
         // In production, API is same origin. In development, use localhost
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -41,6 +42,9 @@ function initializeApp() {
         try {
             app.currentUser = JSON.parse(user);
             updateUIForLoggedInUser();
+            // Start polling for updates
+            startNotificationPolling();
+            startReportsPolling();
         } catch (e) {
             console.error('Error parsing stored user:', e);
             localStorage.removeItem('currentUser');
@@ -238,6 +242,7 @@ async function handleLogin(event) {
         closeAuthModal();
         updateUIForLoggedInUser();
         startNotificationPolling();
+        startReportsPolling();
         navigateToSection('dashboard');
 
         // Reset form
@@ -305,6 +310,7 @@ async function handleSignup(event) {
         closeAuthModal();
         updateUIForLoggedInUser();
         startNotificationPolling();
+        startReportsPolling();
         navigateToSection('dashboard');
 
         // Reset form
@@ -324,6 +330,7 @@ function handleLogout() {
     app.currentUser = null;
     localStorage.removeItem('currentUser');
     stopNotificationPolling();
+    stopReportsPolling();
     updateUIForLoggedInUser();
     navigateToSection('home');
     showNotification('Logged out successfully', 'success');
@@ -591,16 +598,18 @@ async function updateReportStatus(reportId, newStatus) {
         console.log('📝 Closing modal...');
         closeReportModal();
         
-        // Reload reports without navigating away
+        // Reload all reports immediately
         console.log('🔄 Reloading reports data...');
         try {
-            const reportsResponse = await fetch(`${app.apiUrl}/reports?userId=${app.currentUser.id}`);
+            const reportsResponse = await fetch(`${app.apiUrl}/reports`);
             if (reportsResponse.ok) {
                 const reports = await reportsResponse.json();
                 app.reports = Array.isArray(reports) ? reports : [];
                 updateDashboardStats();
                 updateReportsTable();
-                console.log('✅ Reports reloaded successfully');
+                console.log('✅ Reports reloaded successfully, total reports:', app.reports.length);
+            } else {
+                console.error('Failed to reload reports:', reportsResponse.status);
             }
         } catch (error) {
             console.error('❌ Error reloading reports:', error);
@@ -1263,6 +1272,38 @@ function stopNotificationPolling() {
     const notificationList = document.getElementById('notificationList');
     if (notificationList) {
         notificationList.innerHTML = '<p class="empty-message">No notifications</p>';
+    }
+}
+
+function startReportsPolling() {
+    console.log('📊 Starting reports polling...');
+    
+    if (app.reportsRefreshInterval) {
+        clearInterval(app.reportsRefreshInterval);
+    }
+
+    // Check for report updates every 3 seconds
+    app.reportsRefreshInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`${app.apiUrl}/reports`);
+            if (response.ok) {
+                const reports = await response.json();
+                app.reports = Array.isArray(reports) ? reports : [];
+                updateDashboardStats();
+                updateReportsTable();
+            }
+        } catch (error) {
+            console.warn('Error polling reports:', error);
+        }
+    }, 3000);
+}
+
+function stopReportsPolling() {
+    console.log('📊 Stopping reports polling...');
+    
+    if (app.reportsRefreshInterval) {
+        clearInterval(app.reportsRefreshInterval);
+        app.reportsRefreshInterval = null;
     }
 }
 
