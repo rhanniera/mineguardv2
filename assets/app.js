@@ -1140,10 +1140,12 @@ async function loadAdminDashboard() {
         // Load all reports
         const reportsResponse = await fetch(`${app.apiUrl}/reports`);
         app.reports = await reportsResponse.json();
+        console.log(`📋 Loaded ${app.reports.length} reports`);
 
         // Load all users
         const usersResponse = await fetch(`${app.apiUrl}/users`);
         app.users = await usersResponse.json();
+        console.log(`👥 Loaded ${app.users.length} users from API`);
 
         updateAdminStats();
         loadAdminReports();
@@ -1215,12 +1217,16 @@ function loadAdminReports() {
 
 function loadAdminUsers() {
     const tbody = document.getElementById('usersTableBody');
+    console.log(`📊 loadAdminUsers: Rendering ${app.users.length} users`);
 
     if (app.users.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center">No users</td></tr>';
+        console.log('⚠️ No users to display');
         return;
     }
 
+    console.log('👥 Users to render:', app.users.map(u => ({ name: u.name, role: u.role })));
+    
     tbody.innerHTML = app.users.map(user => {
         const userReports = app.reports.filter(r => r.userId === user.id).length;
         return `
@@ -1240,6 +1246,7 @@ function loadAdminUsers() {
             </tr>
         `;
     }).join('');
+    console.log(`✅ Successfully rendered ${app.users.length} user rows in the table`);
 }
 
 async function makeUserAdmin(userId) {
