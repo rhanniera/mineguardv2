@@ -21,7 +21,9 @@ const app = {
         return window.location.origin + '/api';
     })(),
     currentSection: 'home',
-    eventListeners: {} // Simple pub/sub system for real-time updates
+    eventListeners: {}, // Simple pub/sub system for real-time updates
+    lastRequestedSection: null, // Track last requested section for debugging
+    isPageRefreshing: false // Track if page is refreshing to preserve route
 };
 
 // ============================================
@@ -64,6 +66,14 @@ console.log('🌐 Current origin:', window.location.origin);
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Detect page refresh
+    const perfData = window.performance.timing;
+    const pageLoadTime = perfData.loadEventEnd - perfData.navigationStart;
+    app.isPageRefreshing = pageLoadTime < 5000; // If page loaded in less than 5 seconds, likely a refresh
+    
+    console.log(`🔄 Page Load Event - Refresh Detected: ${app.isPageRefreshing}`);
+    console.log(`📊 Page Load Time: ${pageLoadTime}ms`);
+    
     initializeApp();
     setupEventListeners();
     loadInitialData();
@@ -78,27 +88,75 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🔗 Hash changed to:', hash);
         navigateToSection(hash);
     });
+    
+    // Preserve route to localStorage on every route change for recovery
+    window.addEventListener('hashchange', () => {
+        const currentHash = window.location.hash.substring(1) || 'home';
+        try {
+            localStorage.setItem('lastRoute', currentHash);
+            console.log(`💾 Last route saved to localStorage: ${currentHash}`);
+        } catch (e) {
+            console.warn('Could not save route to localStorage:', e);
+        }
+    });
 });
 
 function initializeApp() {
-    // Check if user is logged in
+    console.log('🚀 Initializing App...');
+    
+    // STEP 1: Load user authentication from localStorage
+    console.log('👤 STEP 1: Loading user authentication...');
     const user = localStorage.getItem('currentUser');
     if (user) {
         try {
             app.currentUser = JSON.parse(user);
+            console.log(`✅ User loaded from localStorage: ${app.currentUser.name} (${app.currentUser.role})`);
             updateUIForLoggedInUser();
             // Start polling for updates
             startNotificationPolling();
             startReportsPolling();
         } catch (e) {
-            console.error('Error parsing stored user:', e);
+            console.error('❌ Error parsing stored user:', e);
             localStorage.removeItem('currentUser');
+            app.currentUser = null;
         }
+    } else {
+        console.log('ℹ️ No user logged in');
     }
 
-    // Set initial section based on URL hash, fallback to home
-    const initialSection = window.location.hash.substring(1) || 'home';
-    console.log('🔗 Initial section from URL hash:', initialSection);
+    // STEP 2: Determine the route to navigate to
+    console.log('🔗 STEP 2: Determining route...');
+    let initialSection = 'home';
+    
+    // Priority 1: Check URL hash
+    const hashSection = window.location.hash.substring(1);
+    if (hashSection) {
+        initialSection = hashSection;
+        console.log(`✅ Route from URL hash: #${initialSection}`);
+    } else {
+        // Priority 2: Check localStorage for last visited page (fallback for refresh without hash)
+        const lastRoute = localStorage.getItem('lastRoute');
+        if (lastRoute && lastRoute !== 'home') {
+            // Only use last route if user is logged in (requires auth)
+            if (app.currentUser) {
+                initialSection = lastRoute;
+                console.log(`✅ Route from localStorage (last visit): ${initialSection}`);
+                // Restore hash for proper routing
+                window.location.hash = initialSection;
+            } else {
+                console.log('ℹ️ Last route in localStorage but user not logged in, going to home');
+            }
+        } else {
+            console.log('ℹ️ No hash or last route found, defaulting to home');
+        }
+    }
+    
+    app.lastRequestedSection = initialSection;
+    console.log(`📍 Initial section determined: ${initialSection}`);
+    console.log(`👤 Current user: ${app.currentUser ? app.currentUser.name + ' (' + app.currentUser.role + ')' : 'Not logged in'}`);
+    
+    // STEP 3: Navigate to the determined section
+    console.log(`🚀 STEP 3: Navigating to section: ${initialSection}`);
     navigateToSection(initialSection);
 }
 
@@ -145,8 +203,15 @@ function setupEventListeners() {
 // ============================================
 
 function navigateToSection(sectionId) {
-    console.log(`🔄 Navigating to section: ${sectionId}`);
-    console.log(`📌 Current hash: ${window.location.hash}, Current user:`, app.currentUser);
+    console.log(`🔄 navigateToSection() called with: ${sectionId}`);
+    console.log(`📌 Current hash: ${window.location.hash}, Is navigating: ${app.isNavigating}`);
+    console.log(`👤 Current user: ${app.currentUser ? app.currentUser.email + ' (' + app.currentUser.role + ')' : 'Not logged in'}`);
+    
+    // Prevent recursive navigation
+    if (app.isNavigating) {
+        console.log('⚠️ Navigation already in progress, ignoring...');
+        return;
+    }
     
     // Set flag to prevent recursion
     app.isNavigating = true;
@@ -159,9 +224,17 @@ function navigateToSection(sectionId) {
     const currentHash = window.location.hash.substring(1);
     if (currentHash !== sectionId) {
         window.location.hash = sectionId;
-        console.log(`✅ Hash updated: #${currentHash} → #${sectionId} | Current URL:`, window.location.href);
+        console.log(`✅ Hash updated: #${currentHash} → #${sectionId}`);
+        console.log(`📍 Current URL: ${window.location.href}`);
     } else {
         console.log(`⏭️ Hash already set to #${sectionId}`);
+    }
+    
+    // Save route to localStorage for recovery
+    try {
+        localStorage.setItem('lastRoute', sectionId);
+    } catch (e) {
+        console.warn('Could not save route to localStorage:', e);
     }
     
     // Hide all sections
@@ -209,10 +282,12 @@ function navigateToSection(sectionId) {
 
         // Load section-specific data
         if (sectionId === 'dashboard') {
+            console.log('📊 Loading dashboard section...');
             loadDashboard();
         } else if (sectionId === 'profile') {
+            console.log('👤 Loading profile section...');
             if (!app.currentUser) {
-                console.log('⚠️ Redirecting to home: User not logged in for profile');
+                console.log('⚠️ User not logged in for profile, redirecting to home');
                 app.isNavigating = false;
                 navigateToSection('home');
                 showNotification('Please login to view your profile', 'info');
@@ -220,29 +295,49 @@ function navigateToSection(sectionId) {
             }
             loadProfile();
         } else if (sectionId === 'admin') {
+            console.log('🔐 Loading admin section...');
             const isAdmin = isUserAdmin();
-            console.log(`🔐 Admin check: isUserAdmin=${isAdmin}, currentUser=`, app.currentUser);
+            console.log(`🔐 Admin permission check: isUserAdmin=${isAdmin}, currentUser=`, app.currentUser);
+            
             if (!isAdmin) {
-                console.log('⚠️ Redirecting to home: User is not admin');
+                console.error('❌ User is not admin, cannot access admin section');
+                
+                // Show permission error with delay before redirecting
+                showNotification('⚠️ Admin access required. Redirecting...', 'error');
                 app.isNavigating = false;
-                navigateToSection('home');
-                showNotification('Access denied', 'error');
+                
+                // Delay redirect to let user see the error
+                setTimeout(() => {
+                    console.log('🔄 Redirecting to home after access denied');
+                    navigateToSection('home');
+                }, 2000);
                 return;
             }
             console.log('✅ User is admin, loading admin dashboard');
             loadAdminDashboard();
+        } else {
+            console.log(`✅ Loading section: ${sectionId}`);
         }
 
         // Scroll to top
         window.scrollTo(0, 0);
     } else {
-        console.log(`⚠️ Section element not found: ${sectionId}Section`);
+        console.error(`❌ Section element not found: ${sectionId}Section`);
+        console.log(`Available sections:`, Array.from(sections).map(s => s.id));
+        
+        // If section doesn't exist, try home as fallback
+        if (sectionId !== 'home') {
+            console.log('🔄 Section not found, redirecting to home');
+            app.isNavigating = false;
+            navigateToSection('home');
+            return;
+        }
     }
     
     // Clear flag after navigation completes
     setTimeout(() => {
         app.isNavigating = false;
-        console.log(`✅ Navigation flag cleared for section: ${sectionId}`);
+        console.log(`✅ Navigation completed for section: ${sectionId}`);
     }, 100);
 }
 
@@ -418,8 +513,18 @@ async function handleSignup(event) {
 }
 
 function handleLogout() {
+    console.log('👋 Logging out user...');
     app.currentUser = null;
     localStorage.removeItem('currentUser');
+    
+    // Clear last route to prevent unauthorized access when logging back in
+    try {
+        localStorage.removeItem('lastRoute');
+        console.log('💾 Cleared lastRoute from localStorage');
+    } catch (e) {
+        console.warn('Could not clear lastRoute from localStorage:', e);
+    }
+    
     stopNotificationPolling();
     stopReportsPolling();
     updateUIForLoggedInUser();
