@@ -19,8 +19,41 @@ const app = {
         }
         // Production: same origin
         return window.location.origin + '/api';
-    })()
+    })(),
+    currentSection: 'home',
+    eventListeners: {} // Simple pub/sub system for real-time updates
 };
+
+// ============================================
+// EVENT SYSTEM FOR REAL-TIME UPDATES
+// ============================================
+
+function addEventListener(eventName, callback) {
+    if (!app.eventListeners[eventName]) {
+        app.eventListeners[eventName] = [];
+    }
+    app.eventListeners[eventName].push(callback);
+    console.log(`📡 Event listener registered for: ${eventName}`);
+}
+
+function removeEventListener(eventName, callback) {
+    if (app.eventListeners[eventName]) {
+        app.eventListeners[eventName] = app.eventListeners[eventName].filter(cb => cb !== callback);
+    }
+}
+
+function dispatchEvent(eventName, data) {
+    console.log(`🎯 Dispatching event: ${eventName}`, data);
+    if (app.eventListeners[eventName]) {
+        app.eventListeners[eventName].forEach(callback => {
+            try {
+                callback(data);
+            } catch (error) {
+                console.error(`Error in event listener for ${eventName}:`, error);
+            }
+        });
+    }
+}
 
 console.log('🚀 MineGuard App Initializing');
 console.log('📍 API URL:', app.apiUrl);
@@ -118,6 +151,10 @@ function navigateToSection(sectionId) {
     // Set flag to prevent recursion
     app.isNavigating = true;
     
+    // Track current section
+    app.currentSection = sectionId;
+    console.log(`📍 Current section set to: ${sectionId}`);
+    
     // PRIORITY: Update URL hash FIRST to preserve route on refresh
     const currentHash = window.location.hash.substring(1);
     if (currentHash !== sectionId) {
@@ -156,6 +193,18 @@ function navigateToSection(sectionId) {
         if (hamburger && menu) {
             hamburger.classList.remove('active');
             menu.classList.remove('active');
+        }
+
+        // 🧹 Clean up event listeners from previous sections
+        if (app.dashboardUpdateListener) {
+            console.log('🧹 Removing dashboard update listener');
+            removeEventListener('reportStatusUpdated', app.dashboardUpdateListener);
+            app.dashboardUpdateListener = null;
+        }
+        if (app.adminDashboardListener) {
+            console.log('🧹 Removing admin dashboard update listener');
+            removeEventListener('reportStatusUpdated', app.adminDashboardListener);
+            app.adminDashboardListener = null;
         }
 
         // Load section-specific data
@@ -491,6 +540,26 @@ async function loadDashboard() {
 
         updateDashboardStats();
         updateReportsTable();
+        
+        // 📡 Set up event listener for dashboard real-time updates
+        console.log('📡 Setting up event listener for user dashboard');
+        const dashboardUpdateListener = (data) => {
+            console.log('🔄 Dashboard detected status update:', data);
+            // Find and update the report in the list
+            const reportIndex = app.reports.findIndex(r => r.id === data.reportId);
+            if (reportIndex >= 0) {
+                app.reports[reportIndex] = data.updatedReport;
+                console.log('✅ Updated report in dashboard at index:', reportIndex);
+            }
+            // Refresh dashboard views
+            updateDashboardStats();
+            updateReportsTable();
+            console.log('✅ Dashboard UI refreshed');
+        };
+        
+        app.dashboardUpdateListener = dashboardUpdateListener;
+        addEventListener('reportStatusUpdated', dashboardUpdateListener);
+        
     } catch (error) {
         console.error('Error loading dashboard:', error);
         // Only show error if it's not a network/CORS issue
@@ -618,6 +687,34 @@ async function viewReportDetails(reportId) {
         `;
 
         modal.classList.add('active');
+        
+        // 📡 Set up event listener for real-time updates in the modal
+        console.log(`📡 Setting up event listener for report ${reportId.substring(0, 8)}`);
+        const refreshModalListener = async (data) => {
+            if (data.reportId === reportId) {
+                console.log(`🔄 Modal event detected for report ${reportId.substring(0, 8)}, refreshing modal content...`);
+                // Fetch the latest report data
+                try {
+                    const updatedResponse = await fetch(`${app.apiUrl}/reports/${reportId}`);
+                    const updatedReport = await updatedResponse.json();
+                    
+                    // Update only the status badge without closing the modal
+                    const statusBadge = content.querySelector('[class*="status-badge"]');
+                    if (statusBadge) {
+                        statusBadge.textContent = updatedReport.status;
+                        statusBadge.className = `status-badge status-${updatedReport.status}`;
+                        console.log(`✅ Modal status badge updated to: ${updatedReport.status}`);
+                    }
+                } catch (error) {
+                    console.error('Error refreshing modal:', error);
+                }
+            }
+        };
+        
+        // Store the listener on the modal element so we can remove it later
+        modal.reportRefreshListener = refreshModalListener;
+        addEventListener('reportStatusUpdated', refreshModalListener);
+        
     } catch (error) {
         console.error('Error loading report details:', error);
         showNotification('Failed to load report details', 'error');
@@ -679,10 +776,20 @@ async function updateReportStatus(reportId, newStatus) {
                 app.reports.push(updatedReport);
             }
             
+            // 🎯 DISPATCH EVENT for real-time synchronization
+            console.log('📡 Dispatching reportStatusUpdated event...');
+            dispatchEvent('reportStatusUpdated', {
+                reportId: reportId,
+                newStatus: newStatus,
+                updatedReport: updatedReport
+            });
+            
             // Update UI immediately
             console.log('🎨 Updating dashboard and table...');
             updateDashboardStats();
             updateReportsTable();
+            updateAdminStats();
+            loadAdminReports();
             console.log('✅ UI updated');
         }
         
@@ -704,6 +811,14 @@ async function updateReportStatus(reportId, newStatus) {
 
 function closeReportModal() {
     const modal = document.getElementById('reportModal');
+    
+    // 📡 Clean up event listener when modal closes
+    if (modal.reportRefreshListener) {
+        console.log('🧹 Removing report refresh event listener');
+        removeEventListener('reportStatusUpdated', modal.reportRefreshListener);
+        modal.reportRefreshListener = null;
+    }
+    
     modal.classList.remove('active');
 }
 
@@ -928,6 +1043,27 @@ async function loadAdminDashboard() {
         updateAdminStats();
         loadAdminReports();
         loadAdminUsers();
+        
+        // 📡 Set up event listener for admin dashboard real-time updates
+        console.log('📡 Setting up event listener for admin dashboard');
+        const adminUpdateListener = (data) => {
+            console.log('🔄 Admin dashboard detected status update:', data);
+            // Find and update the report in the list
+            const reportIndex = app.reports.findIndex(r => r.id === data.reportId);
+            if (reportIndex >= 0) {
+                app.reports[reportIndex] = data.updatedReport;
+                console.log('✅ Updated report in admin list at index:', reportIndex);
+            }
+            // Refresh admin views
+            updateAdminStats();
+            loadAdminReports();
+            loadConsolidatedView();
+            console.log('✅ Admin dashboard UI refreshed');
+        };
+        
+        app.adminDashboardListener = adminUpdateListener;
+        addEventListener('reportStatusUpdated', adminUpdateListener);
+        
     } catch (error) {
         console.error('Error loading admin dashboard:', error);
         showNotification('Failed to load admin dashboard', 'error');
@@ -1364,18 +1500,42 @@ function startReportsPolling() {
         clearInterval(app.reportsRefreshInterval);
     }
 
-    // Check for report updates every 3 seconds
+    // Check for report updates every 3 seconds, but only if we're in a section that needs it
     app.reportsRefreshInterval = setInterval(async () => {
-        try {
-            const response = await fetch(`${app.apiUrl}/reports`);
-            if (response.ok) {
-                const reports = await response.json();
-                app.reports = Array.isArray(reports) ? reports : [];
-                updateDashboardStats();
-                updateReportsTable();
+        // Only poll if we're in dashboard or admin section and there's no modal open
+        const modal = document.getElementById('reportModal');
+        const isModalOpen = modal && modal.classList.contains('active');
+        
+        if ((app.currentSection === 'dashboard' || app.currentSection === 'admin') && !isModalOpen) {
+            try {
+                let response;
+                
+                // Different polling based on current section
+                if (app.currentSection === 'admin') {
+                    console.log('📡 Polling for admin dashboard (all reports)');
+                    response = await fetch(`${app.apiUrl}/reports`);
+                } else if (app.currentSection === 'dashboard' && app.currentUser) {
+                    console.log(`📡 Polling for user dashboard (userId: ${app.currentUser.id})`);
+                    response = await fetch(`${app.apiUrl}/reports?userId=${app.currentUser.id}`);
+                }
+                
+                if (response && response.ok) {
+                    const reports = await response.json();
+                    app.reports = Array.isArray(reports) ? reports : [];
+                    
+                    // Only update UI if we're still in the same section
+                    if (app.currentSection === 'dashboard' || app.currentSection === 'admin') {
+                        updateDashboardStats();
+                        updateReportsTable();
+                        if (app.currentSection === 'admin') {
+                            updateAdminStats();
+                            loadAdminReports();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Error polling reports:', error);
             }
-        } catch (error) {
-            console.warn('Error polling reports:', error);
         }
     }, 3000);
 }
