@@ -90,14 +90,20 @@ process.on('SIGTERM', async () => {
 // Start server
 async function startServer() {
     try {
+        console.log('Starting server...');
+        console.log('Environment:', {
+            NODE_ENV: process.env.NODE_ENV || 'development',
+            PORT: process.env.PORT || 3001
+        });
+
         // Initialize database
         await initializeDatabase();
 
         // Start Express server
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`\n✓ Server running on port ${PORT}`);
-            console.log(`✓ API endpoint: http://localhost:${PORT}/api`);
-            console.log(`✓ Health check: http://localhost:${PORT}/health`);
+            console.log(`✓ API endpoint: http://0.0.0.0:${PORT}/api`);
+            console.log(`✓ Health check: http://0.0.0.0:${PORT}/health`);
             console.log('\nReady to accept requests.\n');
         });
     } catch (error) {

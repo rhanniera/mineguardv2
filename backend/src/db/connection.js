@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../../data/mineguard.db');
 
@@ -10,6 +11,19 @@ class Database {
 
     connect() {
         return new Promise((resolve, reject) => {
+            // Ensure data directory exists
+            const dataDir = path.dirname(DB_PATH);
+            if (!fs.existsSync(dataDir)) {
+                try {
+                    fs.mkdirSync(dataDir, { recursive: true });
+                    console.log('✓ Created data directory:', dataDir);
+                } catch (err) {
+                    console.error('Failed to create data directory:', err);
+                    reject(err);
+                    return;
+                }
+            }
+
             this.db = new sqlite3.Database(DB_PATH, (err) => {
                 if (err) {
                     console.error('Database connection error:', err);
