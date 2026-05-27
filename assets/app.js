@@ -113,14 +113,18 @@ function setupEventListeners() {
 
 function navigateToSection(sectionId) {
     console.log(`🔄 Navigating to section: ${sectionId}`);
+    console.log(`📌 Current hash: ${window.location.hash}, Current user:`, app.currentUser);
     
     // Set flag to prevent recursion
     app.isNavigating = true;
     
-    // Update URL hash to preserve route on refresh
-    if (window.location.hash.substring(1) !== sectionId) {
+    // PRIORITY: Update URL hash FIRST to preserve route on refresh
+    const currentHash = window.location.hash.substring(1);
+    if (currentHash !== sectionId) {
         window.location.hash = sectionId;
-        console.log(`🔗 Updated URL hash to: #${sectionId}`);
+        console.log(`✅ Hash updated: #${currentHash} → #${sectionId} | Current URL:`, window.location.href);
+    } else {
+        console.log(`⏭️ Hash already set to #${sectionId}`);
     }
     
     // Hide all sections
@@ -159,6 +163,7 @@ function navigateToSection(sectionId) {
             loadDashboard();
         } else if (sectionId === 'profile') {
             if (!app.currentUser) {
+                console.log('⚠️ Redirecting to home: User not logged in for profile');
                 app.isNavigating = false;
                 navigateToSection('home');
                 showNotification('Please login to view your profile', 'info');
@@ -166,22 +171,29 @@ function navigateToSection(sectionId) {
             }
             loadProfile();
         } else if (sectionId === 'admin') {
-            if (!isUserAdmin()) {
+            const isAdmin = isUserAdmin();
+            console.log(`🔐 Admin check: isUserAdmin=${isAdmin}, currentUser=`, app.currentUser);
+            if (!isAdmin) {
+                console.log('⚠️ Redirecting to home: User is not admin');
                 app.isNavigating = false;
                 navigateToSection('home');
                 showNotification('Access denied', 'error');
                 return;
             }
+            console.log('✅ User is admin, loading admin dashboard');
             loadAdminDashboard();
         }
 
         // Scroll to top
         window.scrollTo(0, 0);
+    } else {
+        console.log(`⚠️ Section element not found: ${sectionId}Section`);
     }
     
     // Clear flag after navigation completes
     setTimeout(() => {
         app.isNavigating = false;
+        console.log(`✅ Navigation flag cleared for section: ${sectionId}`);
     }, 100);
 }
 
