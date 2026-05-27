@@ -20,6 +20,11 @@ const corsOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
     : ['http://localhost:3000', 'http://localhost:5500', 'http://localhost:5501', 'file://'];
 
+// In production, allow any origin since frontend is served from same origin
+if (process.env.NODE_ENV === 'production') {
+    console.log('🔒 Production mode: CORS allowing same-origin requests');
+}
+
 console.log('🔒 CORS Origins:', corsOrigins);
 
 // Middleware
@@ -31,6 +36,20 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Serve static files from root directory
+const staticPath = path.join(__dirname, '../../');
+app.use(express.static(staticPath, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        } else if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        } else if (filePath.endsWith('.html')) {
+            res.setHeader('Content-Type', 'text/html');
+        }
+    }
+}));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -66,6 +85,10 @@ app.get('/api', (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
+    // Serve index.html for non-API routes (SPA fallback)
+    if (!req.path.startsWith('/api/')) {
+        return res.sendFile(path.join(__dirname, '../../index.html'));
+    }
     res.status(404).json({ message: 'Not found' });
 });
 

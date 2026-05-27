@@ -10,7 +10,14 @@ const app = {
     users: [],
     notifications: [],
     notificationCheckInterval: null,
-    apiUrl: window.MINEGUARD_API_URL || 'http://localhost:3001/api'
+    apiUrl: window.MINEGUARD_API_URL || (() => {
+        // In production, API is same origin. In development, use localhost
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:3001/api';
+        }
+        // Production: same origin
+        return window.location.origin + '/api';
+    })()
 };
 
 console.log('🚀 MineGuard App Initializing');
