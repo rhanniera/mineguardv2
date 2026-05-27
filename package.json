@@ -1,0 +1,13 @@
+{
+  "name": "mineguard",
+  "version": "1.0.0",
+  "description": "MineGuard - Workplace Hazard Reporting System",
+  "main": "backend/src/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "install": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
