@@ -592,28 +592,41 @@ async function updateReportStatus(reportId, newStatus) {
             return;
         }
 
+        // Immediately update local state and UI
+        const report = app.reports.find(r => r.id === reportId);
+        if (report) {
+            report.status = newStatus;
+            console.log('✅ Local report updated:', { reportId, newStatus });
+        }
+
         const statusLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
         console.log(`✅ Report status updated to: ${statusLabel}`);
         showNotification(`✅ Report status changed to: ${statusLabel}`, 'success');
+        
+        // Update UI immediately
+        updateDashboardStats();
+        updateReportsTable();
         console.log('📝 Closing modal...');
         closeReportModal();
         
-        // Reload all reports immediately
-        console.log('🔄 Reloading reports data...');
-        try {
-            const reportsResponse = await fetch(`${app.apiUrl}/reports`);
-            if (reportsResponse.ok) {
-                const reports = await reportsResponse.json();
-                app.reports = Array.isArray(reports) ? reports : [];
-                updateDashboardStats();
-                updateReportsTable();
-                console.log('✅ Reports reloaded successfully, total reports:', app.reports.length);
-            } else {
-                console.error('Failed to reload reports:', reportsResponse.status);
+        // Reload all reports from server in background to ensure sync
+        console.log('🔄 Syncing reports data in background...');
+        setTimeout(async () => {
+            try {
+                const reportsResponse = await fetch(`${app.apiUrl}/reports`);
+                if (reportsResponse.ok) {
+                    const reports = await reportsResponse.json();
+                    app.reports = Array.isArray(reports) ? reports : [];
+                    updateDashboardStats();
+                    updateReportsTable();
+                    console.log('✅ Reports synced with server, total reports:', app.reports.length);
+                } else {
+                    console.error('Failed to reload reports:', reportsResponse.status);
+                }
+            } catch (error) {
+                console.error('❌ Error syncing reports:', error);
             }
-        } catch (error) {
-            console.error('❌ Error reloading reports:', error);
-        }
+        }, 500);
     } catch (error) {
         console.error('❌ Error updating report:', error);
         showNotification('Failed to update report', 'error');
