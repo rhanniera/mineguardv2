@@ -158,6 +158,16 @@ function initializeApp() {
     // STEP 3: Navigate to the determined section
     console.log(`🚀 STEP 3: Navigating to section: ${initialSection}`);
     navigateToSection(initialSection);
+
+    // STEP 4: Initialize form defaults
+    console.log('📅 Setting default date/time for report form');
+    const reportDateInput = document.getElementById('reportDate');
+    if (reportDateInput) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        reportDateInput.value = now.toISOString().slice(0, 16);
+        console.log(`✅ Report date/time set to: ${reportDateInput.value}`);
+    }
 }
 
 function setupEventListeners() {
@@ -579,6 +589,9 @@ async function handleHazardReport(event) {
         return;
     }
 
+    const reportDateInput = document.getElementById('reportDate').value;
+    const submittedDate = reportDateInput ? new Date(reportDateInput).toISOString() : new Date().toISOString();
+
     const formData = {
         hazardType: document.getElementById('hazardType').value,
         severity: document.getElementById('severity').value,
@@ -587,7 +600,7 @@ async function handleHazardReport(event) {
         affectedPeople: parseInt(document.getElementById('affectedPeople').value) || 0,
         immediateAction: document.getElementById('immediateAction').value,
         userId: app.currentUser.id,
-        submittedDate: new Date().toISOString(),
+        submittedDate: submittedDate,
         status: 'pending'
     };
 
@@ -710,11 +723,11 @@ function updateReportsTable() {
         return `
         <tr>
             <td>#${report.id.substring(0, 8)}</td>
-            <td>${formatType(report.hazardType)}</td>
+            <td>${formatType(report.hazard_type)}</td>
             <td><span class="severity-badge severity-${report.severity}">${report.severity}</span></td>
             <td>${report.location}</td>
             <td><span class="status-badge status-${report.status.toLowerCase()}">${report.status.toUpperCase()}</span></td>
-            <td>${formatDate(report.submittedDate)}</td>
+            <td>${formatDate(report.submitted_date)}</td>
             <td>
                 <button class="btn btn-small" onclick="viewReportDetails('${report.id}')">View</button>
             </td>
@@ -747,7 +760,7 @@ async function viewReportDetails(reportId) {
                 </div>
                 <div class="detail-row">
                     <label>Hazard Type:</label>
-                    <p>${formatType(report.hazardType)}</p>
+                    <p>${formatType(report.hazard_type)}</p>
                 </div>
                 <div class="detail-row">
                     <label>Severity:</label>
@@ -767,15 +780,15 @@ async function viewReportDetails(reportId) {
                 </div>
                 <div class="detail-row">
                     <label>Affected People:</label>
-                    <p>${report.affectedPeople || 'Not specified'}</p>
+                    <p>${report.affected_people || 'Not specified'}</p>
                 </div>
                 <div class="detail-row">
                     <label>Immediate Action:</label>
-                    <p>${report.immediateAction || 'None specified'}</p>
+                    <p>${report.immediate_action || 'None specified'}</p>
                 </div>
                 <div class="detail-row">
                     <label>Submitted:</label>
-                    <p>${formatDatetime(report.submittedDate)}</p>
+                    <p>${formatDatetime(report.submitted_date)}</p>
                 </div>
                 ${isUserAdmin() ? `
                     <div class="admin-actions">
@@ -1016,11 +1029,11 @@ async function loadProfile() {
         } else {
             reportsContainer.innerHTML = reports.map(report => `
                 <div class="report-item">
-                    <h4>#${report.id.substring(0, 8)} - ${formatType(report.hazardType)}</h4>
+                    <h4>#${report.id.substring(0, 8)} - ${formatType(report.hazard_type)}</h4>
                     <p>Severity: <span class="severity-badge severity-${report.severity}">${report.severity}</span></p>
                     <p>Status: <span class="status-badge status-${report.status}">${report.status}</span></p>
                     <p>Location: ${report.location}</p>
-                    <p>Submitted: ${formatDate(report.submittedDate)}</p>
+                    <p>Submitted: ${formatDate(report.submitted_date)}</p>
                 </div>
             `).join('');
             console.log('📋 Rendered', reports.length, 'reports');
@@ -1202,15 +1215,15 @@ function loadAdminReports() {
     }
 
     tbody.innerHTML = app.reports.map(report => {
-        const user = app.users.find(u => u.id === report.userId);
+        const user = app.users.find(u => u.id === report.user_id);
         return `
             <tr>
                 <td>#${report.id.substring(0, 8)}</td>
                 <td>${user ? user.name : 'Unknown'}</td>
-                <td>${formatType(report.hazardType)}</td>
+                <td>${formatType(report.hazard_type)}</td>
                 <td><span class="severity-badge severity-${report.severity}">${report.severity}</span></td>
                 <td><span class="status-badge status-${report.status}">${report.status}</span></td>
-                <td>${formatDate(report.submittedDate)}</td>
+                <td>${formatDate(report.submitted_date)}</td>
                 <td>
                     <button class="btn btn-small" onclick="viewReportDetails('${report.id}')">View</button>
                 </td>
@@ -1232,7 +1245,7 @@ function loadAdminUsers() {
     console.log('👥 Users to render:', app.users.map(u => ({ name: u.name, role: u.role })));
     
     tbody.innerHTML = app.users.map(user => {
-        const userReports = app.reports.filter(r => r.userId === user.id).length;
+        const userReports = app.reports.filter(r => r.user_id === user.id).length;
         return `
             <tr>
                 <td>#${user.id.substring(0, 8)}</td>
@@ -1364,15 +1377,15 @@ function filterAdminReports() {
     }
 
     tbody.innerHTML = filtered.map(report => {
-        const user = app.users.find(u => u.id === report.userId);
+        const user = app.users.find(u => u.id === report.user_id);
         return `
             <tr>
                 <td>#${report.id.substring(0, 8)}</td>
                 <td>${user ? user.name : 'Unknown'}</td>
-                <td>${formatType(report.hazardType)}</td>
+                <td>${formatType(report.hazard_type)}</td>
                 <td><span class="severity-badge severity-${report.severity}">${report.severity}</span></td>
                 <td><span class="status-badge status-${report.status}">${report.status}</span></td>
-                <td>${formatDate(report.submittedDate)}</td>
+                <td>${formatDate(report.submitted_date)}</td>
                 <td>
                     <button class="btn btn-small" onclick="viewReportDetails('${report.id}')">View</button>
                 </td>
@@ -1430,13 +1443,13 @@ function loadConsolidatedView() {
                         userReports.map(report => `
                             <div class="report-item">
                                 <div class="report-header">
-                                    <strong>#${report.id.substring(0, 8)} - ${formatType(report.hazardType)}</strong>
+                                    <strong>#${report.id.substring(0, 8)} - ${formatType(report.hazard_type)}</strong>
                                     <span class="severity-badge severity-${report.severity}">${report.severity}</span>
                                     <span class="status-badge status-${report.status}">${report.status}</span>
                                 </div>
                                 <p><strong>Location:</strong> ${report.location}</p>
                                 <p><strong>Description:</strong> ${report.description}</p>
-                                <p><strong>Submitted:</strong> ${formatDate(report.submittedDate)}</p>
+                                <p><strong>Submitted:</strong> ${formatDate(report.submitted_date)}</p>
                                 <button class="btn btn-small" onclick="viewReportDetails('${report.id}')">View Details</button>
                             </div>
                         `).join('') +
