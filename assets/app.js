@@ -1137,27 +1137,15 @@ async function loadAdminDashboard() {
     }
 
     try {
-        // Load all reports (with cache-busting)
-        const reportsResponse = await fetch(`${app.apiUrl}/reports`, {
-            headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            }
-        });
+        // Load all reports
+        const reportsResponse = await fetch(`${app.apiUrl}/reports?t=${Date.now()}`);
         const reportsData = await reportsResponse.json();
         // Handle both old array format and new structured format
         app.reports = Array.isArray(reportsData) ? reportsData : reportsData.reports || [];
         console.log(`📋 Loaded ${app.reports.length} reports`);
 
-        // Load all users (with cache-busting)
-        const usersResponse = await fetch(`${app.apiUrl}/users`, {
-            headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            }
-        });
+        // Load all users
+        const usersResponse = await fetch(`${app.apiUrl}/users?t=${Date.now()}`);
         const usersData = await usersResponse.json();
         // Handle both old array format and new structured format
         app.users = Array.isArray(usersData) ? usersData : usersData.users || [];
@@ -1289,13 +1277,8 @@ async function makeUserAdmin(userId) {
         // Reload admin data without navigating away
         console.log('🔄 Reloading admin data...');
         try {
-            const cacheHeaders = {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            };
-            const usersResponse = await fetch(`${app.apiUrl}/users`, { headers: cacheHeaders });
-            const reportsResponse = await fetch(`${app.apiUrl}/reports`, { headers: cacheHeaders });
+            const usersResponse = await fetch(`${app.apiUrl}/users?t=${Date.now()}`);
+            const reportsResponse = await fetch(`${app.apiUrl}/reports?t=${Date.now()}`);
             
             if (usersResponse.ok && reportsResponse.ok) {
                 const usersData = await usersResponse.json();
@@ -1343,13 +1326,8 @@ async function deleteUser(userId, userName) {
         // Reload admin data without navigating away
         console.log('🔄 Reloading admin data...');
         try {
-            const cacheHeaders = {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            };
-            const usersResponse = await fetch(`${app.apiUrl}/users`, { headers: cacheHeaders });
-            const reportsResponse = await fetch(`${app.apiUrl}/reports`, { headers: cacheHeaders });
+            const usersResponse = await fetch(`${app.apiUrl}/users?t=${Date.now()}`);
+            const reportsResponse = await fetch(`${app.apiUrl}/reports?t=${Date.now()}`);
             
             if (usersResponse.ok && reportsResponse.ok) {
                 const usersData = await usersResponse.json();
