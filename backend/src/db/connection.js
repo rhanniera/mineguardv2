@@ -3,9 +3,14 @@ const { Pool } = require('pg');
 // Parse DATABASE_URL or use default connection
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/mineguard';
 
-console.log('🔗 DATABASE_URL set:', !!process.env.DATABASE_URL);
+console.log('🔗 Initializing database connection...');
+console.log('🔗 DATABASE_URL env var:', process.env.DATABASE_URL ? '✓ Set' : '✗ Not set');
 if (process.env.DATABASE_URL) {
-    console.log('🔗 Connection string (masked):', process.env.DATABASE_URL.replace(/:[^:/@]*@/, ':****@'));
+    // Mask password for logging
+    const masked = process.env.DATABASE_URL.replace(/:[^:/@]*@/, ':****@');
+    console.log('🔗 Connection string (masked):', masked);
+} else {
+    console.log('🔗 Using default localhost connection');
 }
 
 // Create connection pool
@@ -19,7 +24,14 @@ const pool = new Pool({
 
 // Handle pool errors
 pool.on('error', (err) => {
-    console.error('🔴 Pool error:', err.message);
+    console.error('🔴 Connection pool error:', {
+        message: err.message,
+        code: err.code
+    });
+});
+
+pool.on('connect', () => {
+    console.log('✓ New client connected to pool');
 });
 
 class Database {
@@ -35,15 +47,24 @@ class Database {
                     console.error('🔴 Connection error:', {
                         message: err.message,
                         code: err.code,
-                        detail: err.detail
+                        detail: err.detail,
+                        errno: err.errno
                     });
                     reject(err);
                 } else {
-                    console.log('✓ Got client from pool');
-                    // Release the client back to pool
-                    release();
-                    this.connected = true;
-                    resolve();
+                    console.log('✓ Got client from pool, testing query...');
+                    // Test the connection
+                    client.query('SELECT NOW()', (queryErr, result) => {
+                        release();
+                        if (queryErr) {
+                            console.error('🔴 Query test failed:', queryErr.message);
+                            reject(queryErr);
+                        } else {
+                            console.log('✓ Database connection successful');
+                            this.connected = true;
+                            resolve();
+                        }
+                    });
                 }
             });
         });
