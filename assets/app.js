@@ -1139,12 +1139,16 @@ async function loadAdminDashboard() {
     try {
         // Load all reports
         const reportsResponse = await fetch(`${app.apiUrl}/reports`);
-        app.reports = await reportsResponse.json();
+        const reportsData = await reportsResponse.json();
+        // Handle both old array format and new structured format
+        app.reports = Array.isArray(reportsData) ? reportsData : reportsData.reports || [];
         console.log(`📋 Loaded ${app.reports.length} reports`);
 
         // Load all users
         const usersResponse = await fetch(`${app.apiUrl}/users`);
-        app.users = await usersResponse.json();
+        const usersData = await usersResponse.json();
+        // Handle both old array format and new structured format
+        app.users = Array.isArray(usersData) ? usersData : usersData.users || [];
         console.log(`👥 Loaded ${app.users.length} users from API`);
 
         updateAdminStats();
@@ -1277,8 +1281,10 @@ async function makeUserAdmin(userId) {
             const reportsResponse = await fetch(`${app.apiUrl}/reports`);
             
             if (usersResponse.ok && reportsResponse.ok) {
-                app.users = await usersResponse.json();
-                app.reports = await reportsResponse.json();
+                const usersData = await usersResponse.json();
+                const reportsData = await reportsResponse.json();
+                app.users = Array.isArray(usersData) ? usersData : usersData.users || [];
+                app.reports = Array.isArray(reportsData) ? reportsData : reportsData.reports || [];
                 updateAdminStats();
                 loadAdminUsers();
                 loadAdminReports();
@@ -1324,8 +1330,10 @@ async function deleteUser(userId, userName) {
             const reportsResponse = await fetch(`${app.apiUrl}/reports`);
             
             if (usersResponse.ok && reportsResponse.ok) {
-                app.users = await usersResponse.json();
-                app.reports = await reportsResponse.json();
+                const usersData = await usersResponse.json();
+                const reportsData = await reportsResponse.json();
+                app.users = Array.isArray(usersData) ? usersData : usersData.users || [];
+                app.reports = Array.isArray(reportsData) ? reportsData : reportsData.reports || [];
                 updateAdminStats();
                 loadAdminUsers();
                 loadAdminReports();
@@ -1459,7 +1467,9 @@ function toggleFAQ(button) {
 async function loadInitialData() {
     try {
         const response = await fetch(`${app.apiUrl}/reports`);
-        app.reports = await response.json();
+        const data = await response.json();
+        // Handle both old array format and new structured format
+        app.reports = Array.isArray(data) ? data : data.reports || [];
     } catch (error) {
         console.warn('Could not load initial data:', error);
     }
