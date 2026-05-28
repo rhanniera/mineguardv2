@@ -155,8 +155,14 @@ async function initializeDatabase() {
                 console.log(`  Email: ${adminEmail}`);
                 console.log(`  Password: admin123`);
 
-                // Create sample users and data
-                await createSampleData(uuidv4);
+                // Only create sample data on first initialization (fresh database)
+                const userCount = await db.get('SELECT COUNT(*) as count FROM users');
+                if (userCount && userCount.count === 1) {  // Only admin exists
+                    console.log('Creating sample data for fresh database...');
+                    await createSampleData(uuidv4);
+                } else {
+                    console.log('✓ Sample data already exists, skipping creation');
+                }
             }
         } catch (err) {
             console.warn('Warning: Could not create admin user:', err.message);
