@@ -16,9 +16,9 @@ router.get('/', async (req, res) => {
 
         console.log(`📬 Fetching notifications for user: ${userId}`);
         const notifications = await db.all(
-            `SELECT id, userId, message, type, read, createdAt FROM notifications 
-             WHERE userId = ? 
-             ORDER BY createdAt DESC 
+            `SELECT id, user_id, message, type, read, created_at FROM notifications 
+             WHERE user_id = ? 
+             ORDER BY created_at DESC 
              LIMIT 50`,
             [userId]
         );
@@ -41,7 +41,7 @@ router.get('/count/unread', async (req, res) => {
         }
 
         const result = await db.get(
-            'SELECT COUNT(*) as count FROM notifications WHERE userId = ? AND read = 0',
+            'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND read = 0',
             [userId]
         );
 
@@ -77,7 +77,7 @@ router.put('/mark/all-read', async (req, res) => {
             return res.status(400).json({ message: 'userId is required' });
         }
 
-        await db.run('UPDATE notifications SET read = 1 WHERE userId = ?', [userId]);
+        await db.run('UPDATE notifications SET read = 1 WHERE user_id = ?', [userId]);
         res.json({ message: 'All notifications marked as read' });
     } catch (error) {
         res.status(500).json({ message: 'Error updating notifications', error: error.message });
@@ -95,7 +95,7 @@ router.post('/', async (req, res) => {
 
         const notificationId = uuidv4();
         await db.run(
-            'INSERT INTO notifications (id, userId, message, type, read) VALUES (?, ?, ?, ?, 0)',
+            'INSERT INTO notifications (id, user_id, message, type, read) VALUES (?, ?, ?, ?, 0)',
             [notificationId, userId, message, type || 'info']
         );
 

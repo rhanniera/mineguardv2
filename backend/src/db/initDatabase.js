@@ -29,12 +29,12 @@ async function createSampleData(uuidv4) {
         const report2Id = uuidv4();
         
         await db.run(
-            'INSERT INTO reports (id, userId, hazardType, severity, location, description, affectedPeople, immediateAction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO reports (id, user_id, hazard_type, severity, location, description, affected_people, immediate_action, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [report1Id, worker1Id, 'Equipment Malfunction', 'High', 'Shaft B', 'Grinding equipment making unusual noise', 3, 'Stop operation immediately', 'open']
         );
         
         await db.run(
-            'INSERT INTO reports (id, userId, hazardType, severity, location, description, affectedPeople, immediateAction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO reports (id, user_id, hazard_type, severity, location, description, affected_people, immediate_action, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [report2Id, worker2Id, 'Safety Violation', 'Medium', 'Surface Area', 'Worker not wearing hard hat', 1, 'Issue written warning', 'resolved']
         );
         
@@ -50,56 +50,73 @@ async function initializeDatabase() {
         await db.connect();
         console.log('✓ Connected to database');
 
-        // Execute schema (split into individual statements)
+        // Drop existing tables to ensure clean schema migration
+        const dropStatements = [
+            'DROP TABLE IF EXISTS report_comments CASCADE',
+            'DROP TABLE IF EXISTS notifications CASCADE',
+            'DROP TABLE IF EXISTS reports CASCADE',
+            'DROP TABLE IF EXISTS users CASCADE'
+        ];
+
+        for (const stmt of dropStatements) {
+            try {
+                await db.run(stmt);
+                console.log(`✓ ${stmt.split(' ')[2]} dropped`);
+            } catch (err) {
+                console.log(`⚠️  Could not drop table: ${err.message}`);
+            }
+        }
+
+        // Execute schema (split into individual statements) - PostgreSQL naming conventions
         const statements = [
-            `CREATE TABLE IF NOT EXISTS users (
+            `CREATE TABLE users (
                 id VARCHAR(255) PRIMARY KEY,
                 name TEXT NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 department TEXT,
                 role TEXT DEFAULT 'user',
-                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`,
-            `CREATE TABLE IF NOT EXISTS reports (
+            `CREATE TABLE reports (
                 id VARCHAR(255) PRIMARY KEY,
-                "userId" VARCHAR(255) NOT NULL,
-                "hazardType" TEXT NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                hazard_type TEXT NOT NULL,
                 severity TEXT NOT NULL,
                 location TEXT NOT NULL,
                 description TEXT NOT NULL,
-                "affectedPeople" INTEGER DEFAULT 0,
-                "immediateAction" TEXT,
+                affected_people INTEGER DEFAULT 0,
+                immediate_action TEXT,
                 status TEXT DEFAULT 'pending',
-                "submittedDate" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+                submitted_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )`,
-            `CREATE TABLE IF NOT EXISTS report_comments (
+            `CREATE TABLE report_comments (
                 id VARCHAR(255) PRIMARY KEY,
-                "reportId" VARCHAR(255) NOT NULL,
-                "userId" VARCHAR(255) NOT NULL,
+                report_id VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
                 comment TEXT NOT NULL,
-                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY ("reportId") REFERENCES reports(id) ON DELETE CASCADE,
-                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )`,
-            `CREATE TABLE IF NOT EXISTS notifications (
+            `CREATE TABLE notifications (
                 id VARCHAR(255) PRIMARY KEY,
-                "userId" VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
                 type TEXT DEFAULT 'info',
                 read SMALLINT DEFAULT 0,
-                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )`,
-            `CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports("userId")`,
-            `CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`,
-            `CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity)`,
-            `CREATE INDEX IF NOT EXISTS idx_comments_reportId ON report_comments("reportId")`,
-            `CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications("userId")`,
-            `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
+            `CREATE INDEX idx_reports_user_id ON reports(user_id)`,
+            `CREATE INDEX idx_reports_status ON reports(status)`,
+            `CREATE INDEX idx_reports_severity ON reports(severity)`,
+            `CREATE INDEX idx_comments_report_id ON report_comments(report_id)`,
+            `CREATE INDEX idx_notifications_user_id ON notifications(user_id)`,
+            `CREATE INDEX idx_users_email ON users(email)`
         ];
 
         let stmtCount = 0;

@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
             params.push(severity);
         }
         if (userId) {
-            conditions.push('userId = ?');
+            conditions.push('user_id = ?');
             params.push(userId);
         }
 
@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
             query += ' WHERE ' + conditions.join(' AND ');
         }
 
-        query += ' ORDER BY submittedDate DESC';
+        query += ' ORDER BY submitted_date DESC';
 
         const reports = await db.all(query, params);
         res.json(reports);
@@ -47,7 +47,7 @@ router.get('/:id', async (req, res) => {
 
         // Get associated comments
         const comments = await db.all(
-            'SELECT rc.id, rc.userId, rc.comment, rc.createdAt, u.name FROM report_comments rc JOIN users u ON rc.userId = u.id WHERE rc.reportId = ? ORDER BY rc.createdAt DESC',
+            'SELECT rc.id, rc.user_id, rc.comment, rc.created_at, u.name FROM report_comments rc JOIN users u ON rc.user_id = u.id WHERE rc.report_id = ? ORDER BY rc.created_at DESC',
             [req.params.id]
         );
 
@@ -77,7 +77,7 @@ router.post('/', async (req, res) => {
 
         const reportId = uuidv4();
         await db.run(
-            'INSERT INTO reports (id, userId, hazardType, severity, location, description, affectedPeople, immediateAction, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO reports (id, user_id, hazard_type, severity, location, description, affected_people, immediate_action, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [reportId, userId, hazardType, severity, location, description, affectedPeople || 0, immediateAction || null, status || 'pending']
         );
 
@@ -88,7 +88,7 @@ router.post('/', async (req, res) => {
                 const notificationMessage = `🚨 New hazard reported: ${hazardType} (${severity.toUpperCase()}) at ${location}`;
                 for (const admin of admins) {
                     await db.run(
-                        'INSERT INTO notifications (id, userId, message, type, read) VALUES (?, ?, ?, ?, 0)',
+                        'INSERT INTO notifications (id, user_id, message, type, read) VALUES (?, ?, ?, ?, 0)',
                         [uuidv4(), admin.id, notificationMessage, 'hazard-report']
                     );
                 }
@@ -112,7 +112,7 @@ router.put('/:id', async (req, res) => {
         const { status, severity, immediateAction } = req.body;
         const reportId = req.params.id;
 
-        const report = await db.get('SELECT id, userId FROM reports WHERE id = ?', [reportId]);
+        const report = await db.get('SELECT id, user_id FROM reports WHERE id = ?', [reportId]);
         if (!report) {
             return res.status(404).json({ message: 'Report not found' });
         }
@@ -129,7 +129,7 @@ router.put('/:id', async (req, res) => {
             updateValues.push(severity);
         }
         if (immediateAction !== undefined) {
-            updateFields.push('immediateAction = ?');
+            updateFields.push('immediate_action = ?');
             updateValues.push(immediateAction);
         }
 
@@ -137,7 +137,7 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ message: 'No fields to update' });
         }
 
-        updateFields.push('updatedAt = CURRENT_TIMESTAMP');
+        updateFields.push('updated_at = CURRENT_TIMESTAMP');
         updateValues.push(reportId);
 
         await db.run(
@@ -151,10 +151,10 @@ router.put('/:id', async (req, res) => {
                 const statusLabel = status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ');
                 const notificationMessage = `📋 Your hazard report (#${reportId.substring(0, 8)}) status has been changed to: ${statusLabel}`;
                 await db.run(
-                    'INSERT INTO notifications (id, userId, message, type, read) VALUES (?, ?, ?, ?, 0)',
-                    [uuidv4(), report.userId, notificationMessage, 'status-change']
+                    'INSERT INTO notifications (id, user_id, message, type, read) VALUES (?, ?, ?, ?, 0)',
+                    [uuidv4(), report.user_id, notificationMessage, 'status-change']
                 );
-                console.log(`📬 Sent status change notification to user: ${report.userId}`);
+                console.log(`📬 Sent status change notification to user: ${report.user_id}`);
             } catch (notificationError) {
                 console.error('Error creating status change notification:', notificationError);
                 // Don't fail the update if notification fails
@@ -179,7 +179,7 @@ router.delete('/:id', async (req, res) => {
         }
 
         // Delete associated comments first
-        await db.run('DELETE FROM report_comments WHERE reportId = ?', [reportId]);
+        await db.run('DELETE FROM report_comments WHERE report_id = ?', [reportId]);
 
         // Delete report
         await db.run('DELETE FROM reports WHERE id = ?', [reportId]);
@@ -207,12 +207,12 @@ router.post('/:id/comments', async (req, res) => {
 
         const commentId = uuidv4();
         await db.run(
-            'INSERT INTO report_comments (id, reportId, userId, comment) VALUES (?, ?, ?, ?)',
+            'INSERT INTO report_comments (id, report_id, user_id, comment) VALUES (?, ?, ?, ?)',
             [commentId, reportId, userId, comment]
         );
 
         const newComment = await db.get(
-            'SELECT rc.id, rc.userId, rc.comment, rc.createdAt, u.name FROM report_comments rc JOIN users u ON rc.userId = u.id WHERE rc.id = ?',
+            'SELECT rc.id, rc.user_id, rc.comment, rc.created_at, u.name FROM report_comments rc JOIN users u ON rc.user_id = u.id WHERE rc.id = ?',
             [commentId]
         );
 
@@ -233,7 +233,7 @@ router.get('/:id/comments', async (req, res) => {
         }
 
         const comments = await db.all(
-            'SELECT rc.id, rc.userId, rc.comment, rc.createdAt, u.name FROM report_comments rc JOIN users u ON rc.userId = u.id WHERE rc.reportId = ? ORDER BY rc.createdAt DESC',
+            'SELECT rc.id, rc.user_id, rc.comment, rc.created_at, u.name FROM report_comments rc JOIN users u ON rc.user_id = u.id WHERE rc.report_id = ? ORDER BY rc.created_at DESC',
             [reportId]
         );
 

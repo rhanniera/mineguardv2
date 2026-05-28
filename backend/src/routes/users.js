@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     try {
         const { role } = req.query; // Optional: ?role=admin or ?role=user
         
-        let query = 'SELECT id, name, email, department, role, createdAt, updatedAt FROM users';
+        let query = 'SELECT id, name, email, department, role, created_at, updated_at FROM users';
         let params = [];
 
         if (role) {
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
             params.push(role);
         }
 
-        query += ' ORDER BY createdAt DESC';
+        query += ' ORDER BY created_at DESC';
 
         const users = await db.all(query, params);
         
@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const user = await db.get(
-            'SELECT id, name, email, department, role, createdAt, updatedAt FROM users WHERE id = ?', 
+            'SELECT id, name, email, department, role, created_at, updated_at FROM users WHERE id = ?', 
             [req.params.id]
         );
         
@@ -143,7 +143,7 @@ router.post('/', async (req, res) => {
         const hashedPassword = hashPassword(password);
 
         await db.run(
-            'INSERT INTO users (id, name, email, password, department, role, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+            'INSERT INTO users (id, name, email, password, department, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
             [userId, name, email, hashedPassword, department || null, 'user']
         );
 
@@ -165,7 +165,7 @@ router.post('/', async (req, res) => {
                     const notifId = uuidv4();
                     console.log(`  → Creating notification for admin ${admin.id}`);
                     await db.run(
-                        'INSERT INTO notifications (id, userId, message, type, read, createdAt) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)',
+                        'INSERT INTO notifications (id, user_id, message, type, read, created_at) VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)',
                         [notifId, admin.id, notificationMessage, 'user-signup']
                     );
                     console.log(`  ✓ Notification created with ID: ${notifId}`);
@@ -285,7 +285,7 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ message: 'No fields to update' });
         }
 
-        updateFields.push('updatedAt = CURRENT_TIMESTAMP');
+        updateFields.push('updated_at = CURRENT_TIMESTAMP');
         updateValues.push(userId);
 
         await db.run(
@@ -334,17 +334,17 @@ router.delete('/:id', async (req, res) => {
         // STEP 3: Delete user's related data (cascading)
         // ========================================
         // Delete comments on user's reports
-        const reports = await db.all('SELECT id FROM reports WHERE userId = ?', [userId]);
+        const reports = await db.all('SELECT id FROM reports WHERE user_id = ?', [userId]);
         
         for (const report of reports) {
-            await db.run('DELETE FROM report_comments WHERE reportId = ?', [report.id]);
+            await db.run('DELETE FROM report_comments WHERE report_id = ?', [report.id]);
         }
         
         // Delete notifications for the user
-        await db.run('DELETE FROM notifications WHERE userId = ?', [userId]);
+        await db.run('DELETE FROM notifications WHERE user_id = ?', [userId]);
         
         // Delete user's reports
-        await db.run('DELETE FROM reports WHERE userId = ?', [userId]);
+        await db.run('DELETE FROM reports WHERE user_id = ?', [userId]);
         
         // ========================================
         // STEP 4: Delete the user account
