@@ -21,7 +21,11 @@ class Database {
         return new Promise((resolve, reject) => {
             pool.query('SELECT 1', (err) => {
                 if (err) {
-                    console.error('Database connection error:', err.message);
+                    console.error('❌ Database connection error:', {
+                        message: err.message,
+                        code: err.code,
+                        detail: err.detail
+                    });
                     reject(err);
                 } else {
                     console.log('✓ Connected to PostgreSQL database');
@@ -41,7 +45,12 @@ class Database {
 
             pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err.message, 'SQL:', sql);
+                    console.error('❌ Database error:', {
+                        message: err.message,
+                        code: err.code,
+                        detail: err.detail,
+                        sql: sql.substring(0, 100)
+                    });
                     reject(err);
                 } else {
                     resolve({
@@ -62,7 +71,11 @@ class Database {
 
             pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err.message);
+                    console.error('❌ Database get error:', {
+                        message: err.message,
+                        code: err.code,
+                        sql: sql.substring(0, 100)
+                    });
                     reject(err);
                 } else {
                     resolve(result.rows[0]);
@@ -80,7 +93,11 @@ class Database {
 
             pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err.message);
+                    console.error('❌ Database all error:', {
+                        message: err.message,
+                        code: err.code,
+                        sql: sql.substring(0, 100)
+                    });
                     reject(err);
                 } else {
                     resolve(result.rows);

@@ -85,6 +85,8 @@ app.get('/health', (req, res) => {
 app.get('/api/setup', async (req, res) => {
     try {
         console.log('🔧 Setup endpoint called - initializing database...');
+        console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+        
         const { initializeDatabase } = require('./db/initDatabase');
         await initializeDatabase();
         res.json({ 
@@ -93,11 +95,12 @@ app.get('/api/setup', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Setup error:', error);
+        console.error('Setup error details:', error);
         res.status(500).json({ 
             success: false,
             message: 'Database initialization failed',
-            error: error.message
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });

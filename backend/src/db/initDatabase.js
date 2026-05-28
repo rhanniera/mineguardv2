@@ -46,6 +46,7 @@ async function createSampleData(uuidv4) {
 
 async function initializeDatabase() {
     try {
+        console.log('🔧 Database initialization starting...');
         await db.connect();
         console.log('✓ Connected to database');
 
@@ -101,20 +102,25 @@ async function initializeDatabase() {
             `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
         ];
 
+        let stmtCount = 0;
         for (const statement of statements) {
             if (statement.trim()) {
                 try {
                     await db.run(statement);
-                    console.log('✓ Schema statement executed');
+                    stmtCount++;
+                    console.log(`✓ Statement ${stmtCount} executed`);
                 } catch (err) {
                     if (!err.message.includes('already exists')) {
-                        console.warn('Schema warning:', err.message);
+                        console.warn(`⚠️ Statement ${stmtCount} warning:`, err.message);
+                    } else {
+                        console.log(`✓ Statement ${stmtCount} already exists`);
+                        stmtCount++;
                     }
                 }
             }
         }
 
-        console.log('✓ Database schema initialized');
+        console.log(`✓ Database schema initialized (${stmtCount}/${statements.length} statements)`);
 
         // Create default admin user
         try {
@@ -123,10 +129,11 @@ async function initializeDatabase() {
             const adminEmail = 'admin@mineguard.com';
             const adminPassword = hashPassword('admin123');
 
+            console.log('🔍 Checking for existing admin...');
             const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', [adminEmail]);
             
             if (!existingAdmin) {
-                console.log('Creating default admin user...');
+                console.log('📝 Creating default admin user...');
                 await db.run(
                     'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
                     [adminId, 'Administrator', adminEmail, adminPassword, 'Management', 'admin']
@@ -136,18 +143,20 @@ async function initializeDatabase() {
                 console.log(`  Password: admin123`);
 
                 // Create sample data on first initialization
-                console.log('Creating sample data for fresh database...');
+                console.log('📝 Creating sample data...');
                 await createSampleData(uuidv4);
+                console.log('✓ Sample data created');
             } else {
-                console.log('✓ Admin user already exists, skipping creation');
+                console.log('✓ Admin user already exists');
             }
         } catch (err) {
-            console.warn('Warning: Could not create admin user:', err.message);
+            console.warn('⚠️ Warning while creating admin user:', err.message);
+            throw err;
         }
 
         console.log('✓ Database initialization complete');
     } catch (error) {
-        console.error('Database initialization error:', error.message);
+        console.error('❌ Database initialization error:', error.message);
         throw error;
     }
 }
