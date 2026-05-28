@@ -5,60 +5,60 @@ const fs = require('fs');
 const SCHEMA_SQL = `
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
     password TEXT NOT NULL,
     department TEXT,
     role TEXT DEFAULT 'user',
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Reports table
 CREATE TABLE IF NOT EXISTS reports (
-    id TEXT PRIMARY KEY,
-    userId TEXT NOT NULL,
-    hazardType TEXT NOT NULL,
+    id VARCHAR(255) PRIMARY KEY,
+    "userId" VARCHAR(255) NOT NULL,
+    "hazardType" TEXT NOT NULL,
     severity TEXT NOT NULL,
     location TEXT NOT NULL,
     description TEXT NOT NULL,
-    affectedPeople INTEGER DEFAULT 0,
-    immediateAction TEXT,
+    "affectedPeople" INTEGER DEFAULT 0,
+    "immediateAction" TEXT,
     status TEXT DEFAULT 'pending',
-    submittedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    "submittedDate" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Report comments table
 CREATE TABLE IF NOT EXISTS report_comments (
-    id TEXT PRIMARY KEY,
-    reportId TEXT NOT NULL,
-    userId TEXT NOT NULL,
+    id VARCHAR(255) PRIMARY KEY,
+    "reportId" VARCHAR(255) NOT NULL,
+    "userId" VARCHAR(255) NOT NULL,
     comment TEXT NOT NULL,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (reportId) REFERENCES reports(id) ON DELETE CASCADE,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("reportId") REFERENCES reports(id) ON DELETE CASCADE,
+    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Notifications table
 CREATE TABLE IF NOT EXISTS notifications (
-    id TEXT PRIMARY KEY,
-    userId TEXT NOT NULL,
+    id VARCHAR(255) PRIMARY KEY,
+    "userId" VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     type TEXT DEFAULT 'info',
-    read INTEGER DEFAULT 0,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+    read SMALLINT DEFAULT 0,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports(userId);
+CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports("userId");
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity);
-CREATE INDEX IF NOT EXISTS idx_comments_reportId ON report_comments(reportId);
-CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications(userId);
+CREATE INDEX IF NOT EXISTS idx_comments_reportId ON report_comments("reportId");
+CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications("userId");
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 `;
 

@@ -1,41 +1,32 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
-// Use /tmp for Railway or fallback to data directory
-const dataDir = process.env.DATA_DIR || path.join(__dirname, '../../data');
-const DB_PATH = path.join(dataDir, 'mineguard.db');
+// Parse DATABASE_URL or use default connection
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/mineguard';
+
+// Create connection pool
+const pool = new Pool({
+    connectionString,
+    // For Railway SSL
+    ...(process.env.DATABASE_URL && {
+        ssl: { rejectUnauthorized: false }
+    })
+});
 
 class Database {
     constructor() {
-        this.db = null;
         this.connected = false;
     }
 
     connect() {
         return new Promise((resolve, reject) => {
-            // Ensure data directory exists
-            try {
-                if (!fs.existsSync(dataDir)) {
-                    fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
-                    console.log('✓ Created data directory:', dataDir);
-                }
-            } catch (err) {
-                console.error('Warning: Could not create data directory:', err.message);
-                // Continue anyway, might still work
-            }
-
-            this.db = new sqlite3.Database(DB_PATH, (err) => {
+            pool.query('SELECT 1', (err) => {
                 if (err) {
-                    console.error('Database connection error:', err);
+                    console.error('Database connection error:', err.message);
                     reject(err);
                 } else {
-                    console.log('✓ Connected to database:', DB_PATH);
+                    console.log('✓ Connected to PostgreSQL database');
                     this.connected = true;
-                    this.db.run('PRAGMA foreign_keys = ON', (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
+                    resolve();
                 }
             });
         });
@@ -43,12 +34,20 @@ class Database {
 
     run(sql, params = []) {
         return new Promise((resolve, reject) => {
-            this.db.run(sql, params, function(err) {
+            // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc)
+            let pgSql = sql;
+            let paramIndex = 1;
+            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+
+            pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err, 'SQL:', sql);
+                    console.error('Database error:', err.message, 'SQL:', sql);
                     reject(err);
                 } else {
-                    resolve({ id: this.lastID, changes: this.changes });
+                    resolve({
+                        lastID: result.rows[0]?.id,
+                        changes: result.rowCount
+                    });
                 }
             });
         });
@@ -56,12 +55,17 @@ class Database {
 
     get(sql, params = []) {
         return new Promise((resolve, reject) => {
-            this.db.get(sql, params, (err, row) => {
+            // Convert SQLite placeholders to PostgreSQL
+            let pgSql = sql;
+            let paramIndex = 1;
+            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+
+            pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err, 'SQL:', sql);
+                    console.error('Database error:', err.message);
                     reject(err);
                 } else {
-                    resolve(row);
+                    resolve(result.rows[0]);
                 }
             });
         });
@@ -69,31 +73,24 @@ class Database {
 
     all(sql, params = []) {
         return new Promise((resolve, reject) => {
-            this.db.all(sql, params, (err, rows) => {
+            // Convert SQLite placeholders to PostgreSQL
+            let pgSql = sql;
+            let paramIndex = 1;
+            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+
+            pool.query(pgSql, params, (err, result) => {
                 if (err) {
-                    console.error('Database error:', err, 'SQL:', sql);
+                    console.error('Database error:', err.message);
                     reject(err);
                 } else {
-                    resolve(rows || []);
+                    resolve(result.rows);
                 }
             });
         });
     }
 
     close() {
-        return new Promise((resolve, reject) => {
-            if (this.db) {
-                this.db.close((err) => {
-                    if (err) reject(err);
-                    else {
-                        console.log('Database connection closed');
-                        resolve();
-                    }
-                });
-            } else {
-                resolve();
-            }
-        });
+        return pool.end();
     }
 }
 
