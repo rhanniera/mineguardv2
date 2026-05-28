@@ -41,12 +41,22 @@ app.use(bodyParser.urlencoded({ extended: true }));
 const staticPath = path.join(__dirname, '../../');
 app.use(express.static(staticPath, {
     setHeaders: (res, filePath) => {
+        // Prevent caching of HTML, JS, and CSS files to ensure latest versions are always loaded
         if (filePath.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
         } else if (filePath.endsWith('.css')) {
             res.setHeader('Content-Type', 'text/css');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
         } else if (filePath.endsWith('.html')) {
             res.setHeader('Content-Type', 'text/html');
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
         }
     }
 }));
