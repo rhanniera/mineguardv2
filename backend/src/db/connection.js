@@ -3,6 +3,11 @@ const { Pool } = require('pg');
 // Parse DATABASE_URL or use default connection
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/mineguard';
 
+console.log('🔗 DATABASE_URL set:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+    console.log('🔗 Connection string (masked):', process.env.DATABASE_URL.replace(/:[^:/@]*@/, ':****@'));
+}
+
 // Create connection pool
 const pool = new Pool({
     connectionString,
@@ -12,6 +17,11 @@ const pool = new Pool({
     })
 });
 
+// Handle pool errors
+pool.on('error', (err) => {
+    console.error('🔴 Pool error:', err.message);
+});
+
 class Database {
     constructor() {
         this.connected = false;
@@ -19,16 +29,19 @@ class Database {
 
     connect() {
         return new Promise((resolve, reject) => {
-            pool.query('SELECT 1', (err) => {
+            console.log('🔌 Attempting database connection...');
+            pool.connect((err, client, release) => {
                 if (err) {
-                    console.error('❌ Database connection error:', {
+                    console.error('🔴 Connection error:', {
                         message: err.message,
                         code: err.code,
                         detail: err.detail
                     });
                     reject(err);
                 } else {
-                    console.log('✓ Connected to PostgreSQL database');
+                    console.log('✓ Got client from pool');
+                    // Release the client back to pool
+                    release();
                     this.connected = true;
                     resolve();
                 }
@@ -38,71 +51,86 @@ class Database {
 
     run(sql, params = []) {
         return new Promise((resolve, reject) => {
-            // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc)
-            let pgSql = sql;
-            let paramIndex = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+            try {
+                // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc)
+                let pgSql = sql;
+                let paramIndex = 1;
+                pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
 
-            pool.query(pgSql, params, (err, result) => {
-                if (err) {
-                    console.error('❌ Database error:', {
-                        message: err.message,
-                        code: err.code,
-                        detail: err.detail,
-                        sql: sql.substring(0, 100)
-                    });
-                    reject(err);
-                } else {
-                    resolve({
-                        lastID: result.rows[0]?.id,
-                        changes: result.rowCount
-                    });
-                }
-            });
+                pool.query(pgSql, params, (err, result) => {
+                    if (err) {
+                        console.error('🔴 Query error:', {
+                            message: err.message,
+                            code: err.code,
+                            detail: err.detail,
+                            sql: pgSql.substring(0, 80)
+                        });
+                        reject(err);
+                    } else {
+                        resolve({
+                            lastID: result.rows[0]?.id,
+                            changes: result.rowCount
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('🔴 Run method error:', error.message);
+                reject(error);
+            }
         });
     }
 
     get(sql, params = []) {
         return new Promise((resolve, reject) => {
-            // Convert SQLite placeholders to PostgreSQL
-            let pgSql = sql;
-            let paramIndex = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+            try {
+                // Convert SQLite placeholders to PostgreSQL
+                let pgSql = sql;
+                let paramIndex = 1;
+                pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
 
-            pool.query(pgSql, params, (err, result) => {
-                if (err) {
-                    console.error('❌ Database get error:', {
-                        message: err.message,
-                        code: err.code,
-                        sql: sql.substring(0, 100)
-                    });
-                    reject(err);
-                } else {
-                    resolve(result.rows[0]);
-                }
-            });
+                pool.query(pgSql, params, (err, result) => {
+                    if (err) {
+                        console.error('🔴 Get query error:', {
+                            message: err.message,
+                            code: err.code,
+                            sql: pgSql.substring(0, 80)
+                        });
+                        reject(err);
+                    } else {
+                        resolve(result.rows[0]);
+                    }
+                });
+            } catch (error) {
+                console.error('🔴 Get method error:', error.message);
+                reject(error);
+            }
         });
     }
 
     all(sql, params = []) {
         return new Promise((resolve, reject) => {
-            // Convert SQLite placeholders to PostgreSQL
-            let pgSql = sql;
-            let paramIndex = 1;
-            pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+            try {
+                // Convert SQLite placeholders to PostgreSQL
+                let pgSql = sql;
+                let paramIndex = 1;
+                pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
 
-            pool.query(pgSql, params, (err, result) => {
-                if (err) {
-                    console.error('❌ Database all error:', {
-                        message: err.message,
-                        code: err.code,
-                        sql: sql.substring(0, 100)
-                    });
-                    reject(err);
-                } else {
-                    resolve(result.rows);
-                }
-            });
+                pool.query(pgSql, params, (err, result) => {
+                    if (err) {
+                        console.error('🔴 All query error:', {
+                            message: err.message,
+                            code: err.code,
+                            sql: pgSql.substring(0, 80)
+                        });
+                        reject(err);
+                    } else {
+                        resolve(result.rows);
+                    }
+                });
+            } catch (error) {
+                console.error('🔴 All method error:', error.message);
+                reject(error);
+            }
         });
     }
 

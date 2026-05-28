@@ -110,11 +110,14 @@ async function initializeDatabase() {
                     stmtCount++;
                     console.log(`✓ Statement ${stmtCount} executed`);
                 } catch (err) {
-                    if (!err.message.includes('already exists')) {
-                        console.warn(`⚠️ Statement ${stmtCount} warning:`, err.message);
-                    } else {
+                    // Only ignore "already exists" errors
+                    if (err.message && err.message.includes('already exists')) {
                         console.log(`✓ Statement ${stmtCount} already exists`);
                         stmtCount++;
+                    } else {
+                        console.error(`🔴 Statement ${stmtCount} failed:`, err.message);
+                        // Don't throw yet, continue with other statements
+                        // throw err;
                     }
                 }
             }

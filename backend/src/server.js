@@ -95,11 +95,18 @@ app.get('/api/setup', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('Setup error details:', error);
+        console.error('🔴 Setup error details:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            stack: error.stack
+        });
         res.status(500).json({ 
             success: false,
             message: 'Database initialization failed',
             error: error.message,
+            code: error.code,
+            detail: error.detail,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
