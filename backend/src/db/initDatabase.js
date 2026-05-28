@@ -1,66 +1,4 @@
 const db = require('./connection');
-const path = require('path');
-const fs = require('fs');
-
-const SCHEMA_SQL = `
--- Users table
-CREATE TABLE IF NOT EXISTS users (
-    id VARCHAR(255) PRIMARY KEY,
-    name TEXT NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    department TEXT,
-    role TEXT DEFAULT 'user',
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Reports table
-CREATE TABLE IF NOT EXISTS reports (
-    id VARCHAR(255) PRIMARY KEY,
-    "userId" VARCHAR(255) NOT NULL,
-    "hazardType" TEXT NOT NULL,
-    severity TEXT NOT NULL,
-    location TEXT NOT NULL,
-    description TEXT NOT NULL,
-    "affectedPeople" INTEGER DEFAULT 0,
-    "immediateAction" TEXT,
-    status TEXT DEFAULT 'pending',
-    "submittedDate" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Report comments table
-CREATE TABLE IF NOT EXISTS report_comments (
-    id VARCHAR(255) PRIMARY KEY,
-    "reportId" VARCHAR(255) NOT NULL,
-    "userId" VARCHAR(255) NOT NULL,
-    comment TEXT NOT NULL,
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY ("reportId") REFERENCES reports(id) ON DELETE CASCADE,
-    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Notifications table
-CREATE TABLE IF NOT EXISTS notifications (
-    id VARCHAR(255) PRIMARY KEY,
-    "userId" VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    type TEXT DEFAULT 'info',
-    read SMALLINT DEFAULT 0,
-    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
-);
-
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports("userId");
-CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
-CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity);
-CREATE INDEX IF NOT EXISTS idx_comments_reportId ON report_comments("reportId");
-CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications("userId");
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-`;
 
 function hashPassword(password) {
     // Simple hash - in production use bcrypt
@@ -108,28 +46,69 @@ async function createSampleData(uuidv4) {
 
 async function initializeDatabase() {
     try {
-        // Create data directory if it doesn't exist
-        const dataDir = path.join(__dirname, '../../data');
-        try {
-            if (!fs.existsSync(dataDir)) {
-                fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
-            }
-        } catch (err) {
-            console.warn('Warning: Could not ensure data directory:', err.message);
-            // Continue anyway
-        }
-
         await db.connect();
+        console.log('✓ Connected to database');
 
-        // Execute schema
-        const statements = SCHEMA_SQL.split(';').filter(stmt => stmt.trim());
+        // Execute schema (split into individual statements)
+        const statements = [
+            `CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR(255) PRIMARY KEY,
+                name TEXT NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                department TEXT,
+                role TEXT DEFAULT 'user',
+                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS reports (
+                id VARCHAR(255) PRIMARY KEY,
+                "userId" VARCHAR(255) NOT NULL,
+                "hazardType" TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                location TEXT NOT NULL,
+                description TEXT NOT NULL,
+                "affectedPeople" INTEGER DEFAULT 0,
+                "immediateAction" TEXT,
+                status TEXT DEFAULT 'pending',
+                "submittedDate" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+            )`,
+            `CREATE TABLE IF NOT EXISTS report_comments (
+                id VARCHAR(255) PRIMARY KEY,
+                "reportId" VARCHAR(255) NOT NULL,
+                "userId" VARCHAR(255) NOT NULL,
+                comment TEXT NOT NULL,
+                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY ("reportId") REFERENCES reports(id) ON DELETE CASCADE,
+                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+            )`,
+            `CREATE TABLE IF NOT EXISTS notifications (
+                id VARCHAR(255) PRIMARY KEY,
+                "userId" VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                type TEXT DEFAULT 'info',
+                read SMALLINT DEFAULT 0,
+                "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY ("userId") REFERENCES users(id) ON DELETE CASCADE
+            )`,
+            `CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports("userId")`,
+            `CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`,
+            `CREATE INDEX IF NOT EXISTS idx_reports_severity ON reports(severity)`,
+            `CREATE INDEX IF NOT EXISTS idx_comments_reportId ON report_comments("reportId")`,
+            `CREATE INDEX IF NOT EXISTS idx_notifications_userId ON notifications("userId")`,
+            `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
+        ];
+
         for (const statement of statements) {
             if (statement.trim()) {
                 try {
                     await db.run(statement);
+                    console.log('✓ Schema statement executed');
                 } catch (err) {
                     if (!err.message.includes('already exists')) {
-                        console.warn('Schema execution warning:', err.message);
+                        console.warn('Schema warning:', err.message);
                     }
                 }
             }
@@ -147,6 +126,7 @@ async function initializeDatabase() {
             const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', [adminEmail]);
             
             if (!existingAdmin) {
+                console.log('Creating default admin user...');
                 await db.run(
                     'INSERT INTO users (id, name, email, password, department, role) VALUES (?, ?, ?, ?, ?, ?)',
                     [adminId, 'Administrator', adminEmail, adminPassword, 'Management', 'admin']
@@ -155,36 +135,19 @@ async function initializeDatabase() {
                 console.log(`  Email: ${adminEmail}`);
                 console.log(`  Password: admin123`);
 
-                // Only create sample data on first initialization (fresh database)
-                try {
-                    const userCountResult = await db.get('SELECT COUNT(*) as user_count FROM users');
-                    const count = userCountResult?.user_count || 0;
-                    
-                    if (count === 1) {  // Only admin exists
-                        console.log('Creating sample data for fresh database...');
-                        await createSampleData(uuidv4);
-                    } else {
-                        console.log(`✓ Database has ${count} users, skipping sample data creation`);
-                    }
-                } catch (countErr) {
-                    console.warn('Warning: Could not check user count:', countErr.message);
-                    // Try to create sample data anyway
-                    try {
-                        await createSampleData(uuidv4);
-                    } catch (sampleErr) {
-                        console.warn('Warning: Could not create sample data:', sampleErr.message);
-                    }
-                }
+                // Create sample data on first initialization
+                console.log('Creating sample data for fresh database...');
+                await createSampleData(uuidv4);
+            } else {
+                console.log('✓ Admin user already exists, skipping creation');
             }
         } catch (err) {
             console.warn('Warning: Could not create admin user:', err.message);
-            // Don't crash - user might already exist
         }
 
         console.log('✓ Database initialization complete');
     } catch (error) {
         console.error('Database initialization error:', error.message);
-        // Don't exit - let server continue
         throw error;
     }
 }

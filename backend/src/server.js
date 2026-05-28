@@ -81,6 +81,27 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Setup endpoint for manual database initialization
+app.get('/api/setup', async (req, res) => {
+    try {
+        console.log('🔧 Setup endpoint called - initializing database...');
+        const { initializeDatabase } = require('./db/initDatabase');
+        await initializeDatabase();
+        res.json({ 
+            success: true,
+            message: 'Database initialized successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Setup error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Database initialization failed',
+            error: error.message
+        });
+    }
+});
+
 // API info endpoint
 app.get('/api', (req, res) => {
     res.json({
