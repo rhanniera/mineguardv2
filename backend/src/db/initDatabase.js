@@ -156,12 +156,24 @@ async function initializeDatabase() {
                 console.log(`  Password: admin123`);
 
                 // Only create sample data on first initialization (fresh database)
-                const userCount = await db.get('SELECT COUNT(*) as count FROM users');
-                if (userCount && userCount.count === 1) {  // Only admin exists
-                    console.log('Creating sample data for fresh database...');
-                    await createSampleData(uuidv4);
-                } else {
-                    console.log('✓ Sample data already exists, skipping creation');
+                try {
+                    const userCountResult = await db.get('SELECT COUNT(*) as user_count FROM users');
+                    const count = userCountResult?.user_count || 0;
+                    
+                    if (count === 1) {  // Only admin exists
+                        console.log('Creating sample data for fresh database...');
+                        await createSampleData(uuidv4);
+                    } else {
+                        console.log(`✓ Database has ${count} users, skipping sample data creation`);
+                    }
+                } catch (countErr) {
+                    console.warn('Warning: Could not check user count:', countErr.message);
+                    // Try to create sample data anyway
+                    try {
+                        await createSampleData(uuidv4);
+                    } catch (sampleErr) {
+                        console.warn('Warning: Could not create sample data:', sampleErr.message);
+                    }
                 }
             }
         } catch (err) {

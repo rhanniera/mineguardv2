@@ -551,8 +551,8 @@ router.post('/:id/demote', async (req, res) => {
         // ========================================
         if (user.role === 'admin') {
             // Check if this is the last admin
-            const adminCount = await db.get('SELECT COUNT(*) as count FROM users WHERE role = ?', ['admin']);
-            if (adminCount.count <= 1) {
+            const adminCount = await db.get('SELECT COUNT(*) as admin_count FROM users WHERE role = ?', ['admin']);
+            if ((adminCount?.admin_count || 0) <= 1) {
                 return res.status(403).json({ 
                     success: false,
                     message: 'Error: Cannot demote the last Administrator',
